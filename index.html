@@ -386,14 +386,6 @@
                     this.drawRings(ctx, cx, cy, radius, config.ringColor, rng, false);
                 }
 
-                // 6. Moons
-                if (config.moons > 0) {
-                     // We just draw them statically for the texture, 
-                     // but ideally they should be separate objects. 
-                     // For simplicity, we bake them if they are close, 
-                     // but actually, let's skip baking moons and render them in the engine.
-                }
-
                 // Convert to ImageBitmap or return canvas
                 const offC = document.createElement('canvas');
                 offC.width = size; offC.height = size;
@@ -417,8 +409,6 @@
                 ctx.fillStyle = color;
                 ctx.globalAlpha = 0.6;
                 
-                // Clip based on behind/front
-                // This is a simplified "fake" 3D ring render logic
                 if (behind) {
                     ctx.globalCompositeOperation = 'destination-over';
                 }
@@ -698,32 +688,23 @@
                 const starRng = new SeededRandom(this.config.seed + "_stars");
                 const maxRadius = Math.hypot(this.width, this.height) * 1.8;
                 
-                // Clustering parameters
-                const clusterScale = 0.002; // Scale of noise
+                const clusterScale = 0.002; 
                 const clusterThreshold = 1 - this.config.clusterFactor; 
 
                 for (let i = 0; i < this.activeStars; i++) {
-                    // 1. Position
                     const r = Math.sqrt(starRng.next()) * maxRadius;
                     const theta = starRng.next() * Math.PI * 2;
                     
-                    // 2. Clustering check
-                    // We map polar (r, theta) to "space coordinates" for noise to get bands
                     const sx = r * Math.cos(theta);
                     const sy = r * Math.sin(theta);
                     
-                    const noiseVal = starRng.noise(sx * clusterScale, sy * clusterScale); // 0-1 approx
-                    // If clustering is high, we reject stars in low noise areas
-                    // We bias random roll against noise value
+                    const noiseVal = starRng.noise(sx * clusterScale, sy * clusterScale); 
                     if (starRng.next() > (noiseVal + clusterThreshold)) {
-                        // Chance to skip this star to create voids
-                        // But we want *some* stars everywhere
-                        if(starRng.next() > 0.1) { // 10% chance to exist anyway (background stars)
+                        if(starRng.next() > 0.1) { 
                             i--; continue; 
                         }
                     }
 
-                    // 3. Properties
                     let size = 1.0;
                     const sizeRoll = starRng.next();
                     if (sizeRoll > 0.99) size = starRng.range(2, 3.5);
@@ -748,102 +729,101 @@
             }
 
             generateLandscape() {
+                // Resolution Independent Fix:
+                // We generate the landscape on a fixed coordinate system (2000 units wide)
+                // and then stretch it to fit the actual screen width.
+                // This ensures "Gadi" always produces the same mountain shape regardless of screen resolution.
+                
+                const LOGICAL_WIDTH = 2000;
                 const landRng = new SeededRandom(this.config.seed + "_land");
+                
+                // Clear Landscape Canvas
                 this.landscapeCanvas.width = this.width;
                 this.landscapeCanvas.height = this.height;
                 const ctx = this.landscapeCanvas.getContext('2d');
                 ctx.clearRect(0, 0, this.width, this.height);
                 ctx.fillStyle = '#020202';
 
-                // Simplex-ish 1D noise for terrain
-                const heightMap = new Float32Array(this.width);
+                // Scale factor from Logical Universe -> Screen Pixels
+                const scaleX = this.width / LOGICAL_WIDTH;
+                
+                // --- 1. Height Map (Fixed 2000 points) ---
+                const logicalHeightMap = new Float32Array(LOGICAL_WIDTH);
                 let y = this.height * 0.85; 
-                let t = 0;
 
+                // We generate points in logical space
+                for (let lx = 0; lx < LOGICAL_WIDTH; lx++) {
+                    const n1 = Math.sin(lx * 0.005 + landRng.next()*10) * 20;
+                    const n2 = Math.sin(lx * 0.02) * 5;
+                    const n3 = Math.sin(lx * 0.1) * 2;
+                    // Note: Vertical amplitude is still relative to screen height for better aspect ratio adaptation,
+                    // but the "randomness" is locked to lx.
+                    const val = (this.height * 0.85) + n1 + n2 + n3;
+                    logicalHeightMap[lx] = val;
+                }
+
+                // --- 2. Draw Terrain ---
                 ctx.beginPath();
                 ctx.moveTo(0, this.height);
-                for (let x = 0; x < this.width; x++) {
-                    // Layered noise
-                    const n1 = Math.sin(x * 0.005 + landRng.next()*10) * 20;
-                    const n2 = Math.sin(x * 0.02) * 5;
-                    const n3 = Math.sin(x * 0.1) * 2;
-                    y = (this.height * 0.85) + n1 + n2 + n3;
-                    
-                    heightMap[x] = y;
-                    ctx.lineTo(x, y);
+                for (let lx = 0; lx < LOGICAL_WIDTH; lx++) {
+                    ctx.lineTo(lx * scaleX, logicalHeightMap[lx]);
                 }
                 ctx.lineTo(this.width, this.height);
                 ctx.lineTo(0, this.height);
                 ctx.fill();
 
-                // Trees
-                // Use density from config
-                const baseTrees = this.width / 6;
+                // --- 3. Trees ---
+                // Use a SEPARATE RNG for trees so terrain loop length doesn't affect tree randomness sequence
+                const treeRng = new SeededRandom(this.config.seed + "_trees");
+                
+                const baseTrees = LOGICAL_WIDTH / 6; // Trees density based on logical width
                 const treeCount = Math.floor(baseTrees * this.config.treeDensity);
                 
                 let trees = [];
                 for(let i=0; i<treeCount; i++) {
-                    const x = Math.floor(landRng.next() * this.width);
-                    trees.push({x, y: heightMap[x]});
+                    // Pick a logical X coordinate (0 to 2000)
+                    const lx = Math.floor(treeRng.next() * LOGICAL_WIDTH);
+                    // Get height at that logical coordinate
+                    const ly = logicalHeightMap[lx];
+                    
+                    // Map to screen X
+                    trees.push({
+                        x: lx * scaleX, 
+                        y: ly,
+                        lx: lx // Keep logical X for noise consistency if needed
+                    });
                 }
-                trees.sort((a,b) => a.y - b.y); // Draw back to front
+                trees.sort((a,b) => a.y - b.y);
 
                 for(let tr of trees) {
-                    // Don't draw if too high up (peaks)
-                    if (tr.y < this.height * 0.75 && landRng.next() > 0.2) continue;
+                    if (tr.y < this.height * 0.75 && treeRng.next() > 0.2) continue;
                     
                     const depth = (tr.y - (this.height * 0.7)) / (this.height * 0.3);
                     const scale = 0.5 + depth * 2.0;
                     
-                    // Stylized Pine (Reference Style)
-                    const h = (40 + landRng.next() * 50) * scale;
-                    const w = h * 0.45; // Slightly wider base
+                    // Stylized Pine
+                    const h = (40 + treeRng.next() * 50) * scale;
+                    const w = h * 0.45;
                     
-                    ctx.fillStyle = '#030305'; // Very dark blue/black
+                    ctx.fillStyle = '#030305';
                     
-                    // Draw 3-4 stacked triangles, getting wider at bottom
-                    const tiers = 3 + Math.floor(landRng.next() * 2);
+                    const tiers = 3 + Math.floor(treeRng.next() * 2);
                     
                     for(let j=0; j<tiers; j++) {
-                        const progress = j/tiers;
-                        // Bottom of this tier
-                        const tierY = tr.y - (h * progress); 
-                        // Top of this tier (tip)
-                        const tipY = tr.y - (h * ((j+1.4)/tiers)); // Overlap upwards
-                        
-                        // Width of this tier
-                        const tierW = w * (1 - (progress * 0.6)); // Taper
-                        
-                        // Wait, logic inverted. 
-                        // j=0 is bottom tier.
-                        
-                        const tierBottomY = tr.y - (h * (j/tiers) * 0.8); // slight overlap
-                        const tierTopY = tr.y - h;
-                        
-                        // Easier way: Draw from top down or bottom up.
-                        // Let's draw bottom up, triangles getting smaller.
-                        
                         const tProgress = j / tiers;
                         const nextProgress = (j+1) / tiers;
                         
                         const bottomW = w * (1 - tProgress * 0.6);
-                        const topW = w * (1 - nextProgress * 0.6);
                         
                         const bottomY = tr.y - (h * tProgress * 0.85);
-                        const topY = tr.y - (h * nextProgress * 1.2); 
                         
-                        // Draw Triangle
                         ctx.beginPath();
                         ctx.moveTo(tr.x - bottomW/2, bottomY);
-                        ctx.lineTo(tr.x, tr.y - (h * (j+1)/tiers * 1.2)); // Peak of this tier
+                        ctx.lineTo(tr.x, tr.y - (h * (j+1)/tiers * 1.2));
                         ctx.lineTo(tr.x + bottomW/2, bottomY);
                         ctx.fill();
-                        
-                        // Add slight curve/flare to branches? 
-                        // Keep sharp for requested style.
                     }
                     
-                    // Thin trunk (barely visible)
                     ctx.fillStyle = '#020202';
                     ctx.fillRect(tr.x - w*0.05, tr.y, w*0.1, 5);
                 }
@@ -867,28 +847,14 @@
                 const dt = timestamp - this.lastTime;
                 this.lastTime = timestamp;
                 
-                // 1. Sky Gradient
                 const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
                 let sunFactor = this.sun ? this.sun.intensity : 0;
                 
-                // If sun is up, sky gets brighter/bluer
-                if (this.sun) {
-                     // Simple check: Is sun "visible" on screen?
-                     // Actually, sunIntensity is global "daylight" factor here
-                }
-
                 gradient.addColorStop(0, this.skyColors.top);
                 gradient.addColorStop(0.5, this.skyColors.mid);
                 gradient.addColorStop(1, this.skyColors.bottom);
                 this.ctx.fillStyle = gradient;
                 this.ctx.fillRect(0, 0, this.width, this.height);
-
-                // 2. Sun (Behind Stars? No, stars are distant. Sun is closer. 
-                // Wait, in visualization, Sun usually blocks stars behind it, but we are inside solar system.
-                // Stars are background. Sun is foreground object relative to stars.)
-                
-                // Actually, let's render Stars FIRST, then Sun, then Planets.
-                // Light pollution affects star alpha.
                 
                 const time = Date.now() * 0.002;
                 const rot = this.config.rotationSpeed;
@@ -897,17 +863,15 @@
                 const w = this.width;
                 const h = this.height;
 
-                // Star Rendering
                 let starAlphaMult = 1.0;
                 if (this.sun) {
-                    // Decrease star visibility based on sun intensity
                     starAlphaMult = Math.max(0, 1.0 - this.sun.intensity * 1.5);
                 }
 
                 if (starAlphaMult > 0.01) {
                     for (let i = 0; i < this.activeStars; i++) {
                         const off = i * 5;
-                        this.starData[off + 1] += rot; // Rotate
+                        this.starData[off + 1] += rot; 
                         
                         const r = this.starData[off];
                         const theta = this.starData[off + 1];
@@ -920,7 +884,6 @@
                         const size = this.starData[off + 2];
                         const twinkle = this.starData[off + 3];
                         
-                        // Twinkle
                         let alpha = (0.7 + 0.3 * Math.sin(time + twinkle)) * starAlphaMult;
                         
                         const col = this.starColors[i];
@@ -933,11 +896,9 @@
                     }
                 }
 
-                // 3. Draw Sun
                 if (this.sun) {
                     const { x, y, radius, color, intensity } = this.sun;
                     
-                    // Glow
                     const sg = this.ctx.createRadialGradient(x, y, radius*0.2, x, y, radius*4);
                     sg.addColorStop(0, `rgba(${color}, 1)`);
                     sg.addColorStop(0.2, `rgba(${color}, ${0.5 * intensity})`);
@@ -947,13 +908,11 @@
                     this.ctx.arc(x, y, radius*4, 0, Math.PI*2);
                     this.ctx.fill();
 
-                    // Core
                     this.ctx.fillStyle = `rgb(${color})`;
                     this.ctx.beginPath();
                     this.ctx.arc(x, y, radius, 0, Math.PI*2);
                     this.ctx.fill();
                     
-                    // God Rays (simple)
                     if (intensity > 0.5) {
                         this.ctx.save();
                         this.ctx.globalCompositeOperation = 'screen';
@@ -970,29 +929,19 @@
                     }
                 }
 
-                // 4. Draw Planets
                 for (let p of this.planets) {
                     const cx = p.x;
                     const cy = p.y;
-                    // Check bounds loosely
                     if (cx < -p.size || cx > w + p.size || cy < -p.size || cy > h + p.size) continue;
                     
                     this.ctx.drawImage(p.img, cx - p.size/2, cy - p.size/2);
                     
-                    // Moons (Simple circles orbiting)
-                    // We generate them on the fly for animation
-                    // Use seed based offset for orbit
-                    // Need planet specific random... use p.x as seed approx
-                    if (p.radius > 30) { // Only big planets have visible moons here
+                    if (p.radius > 30) { 
                         const orbitTime = time * 0.5;
                         const orbitR = p.radius * 2.5;
                         const mx = cx + Math.cos(orbitTime) * orbitR;
-                        const my = cy + Math.sin(orbitTime) * (orbitR * 0.3); // Perspective
+                        const my = cy + Math.sin(orbitTime) * (orbitR * 0.3); 
                         
-                        // Draw moon (behind or front?)
-                        // If sin > 0 front, else back
-                        // Draw back moons before planet? Too late. 
-                        // Draw front moons now.
                         if (Math.sin(orbitTime) > 0) {
                             this.ctx.fillStyle = '#ccc';
                             this.ctx.beginPath();
@@ -1002,7 +951,6 @@
                     }
                 }
 
-                // 5. Shooting Stars
                 this.spawnShootingStar();
                 for (let i = this.shootingStars.length - 1; i >= 0; i--) {
                     const s = this.shootingStars[i];
@@ -1029,10 +977,8 @@
                     if (s.life <= 0 || s.x > w || s.y > h) this.shootingStars.splice(i, 1);
                 }
 
-                // 6. Landscape
                 this.ctx.drawImage(this.landscapeCanvas, 0, 0);
 
-                // 7. Atmos Overlay
                 if (this.config.glowIntensity > 0) {
                     const atmoH = this.height * 0.4;
                     const ag = this.ctx.createLinearGradient(0, this.height-atmoH, 0, this.height);
@@ -1043,7 +989,6 @@
                 }
 
                 this.ctx.fillStyle = '#fff';
-                // FPS Update
                 if (timestamp % 30 < 1) this.fpsDisplay.innerText = `FPS: ${Math.round(1000/dt)}`;
 
                 requestAnimationFrame(this.animate);
