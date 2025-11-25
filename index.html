@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Starlight Masterpiece - Galactic Edition</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* UI Overlay */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 340px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #controls {
+            background: rgba(8, 8, 12, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 12px;
+            color: #e0e0e0;
+            backdrop-filter: blur(16px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            pointer-events: auto;
+            transition: opacity 0.3s;
+            max-height: 90vh;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #444 #222;
+        }
+
+        #controls::-webkit-scrollbar { width: 6px; }
+        #controls::-webkit-scrollbar-track { background: #222; }
+        #controls::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #settings-content {
+            overflow: hidden;
+            transition: max-height 0.5s ease-in-out, opacity 0.4s ease;
+            max-height: 2000px; 
+            opacity: 1;
+        }
+
+        #settings-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+            margin: 0;
+        }
+
+        .header-row .fa-chevron-down { transition: transform 0.3s ease; }
+        .header-row .rotated { transform: rotate(-180deg); }
+
+        h1 {
+            font-size: 14px;
+            margin: 0;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: #fff;
+        }
+
+        #lock-btn {
+            background: none;
+            border: none;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 18px;
+            transition: color 0.2s;
+            padding: 5px;
+        }
+        
+        #lock-btn:hover { color: #fff; }
+        #lock-btn.locked { color: #ff4444; }
+
+        .control-group {
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        .control-group label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            margin-bottom: 6px;
+            color: #889;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            background: transparent;
+            -webkit-appearance: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #333;
+            border-radius: 2px;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #fff;
+            margin-top: -5px;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+            transition: transform 0.1s;
+        }
+
+        input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+
+        input[type="text"] {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid #444;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            box-sizing: border-box;
+        }
+
+        input:focus { outline: none; border-color: #888; }
+
+        .value-display { color: #4fc3f7; font-family: monospace; }
+
+        .section-title {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 25px 0 10px 0;
+            border-bottom: 1px solid #222;
+            padding-bottom: 2px;
+            font-weight: bold;
+        }
+
+        #fps {
+            position: absolute;
+            bottom: 10px;
+            left: 15px;
+            color: #666;
+            font-family: monospace;
+            font-size: 11px;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px black;
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div id="ui-container">
+        <div id="controls">
+            <div class="header-row" id="settings-header">
+                <h1>Settings <i class="fas fa-chevron-down" style="font-size: 0.8em; margin-left: 8px;"></i></h1>
+                <button id="lock-btn" title="Lock Settings"><i class="fas fa-lock-open"></i></button>
+            </div>
+
+            <div id="settings-content">
+                <div class="control-group">
+                    <label>Universe Seed</label>
+                    <input type="text" id="seed" value="CosmicVoyage2025">
+                </div>
+
+                <div class="section-title">Celestial Mechanics</div>
+                
+                <div class="control-group">
+                    <label>Rotation Speed <span id="val-speed" class="value-display">-0.0001</span></label>
+                    <input type="range" id="speed" min="-0.002" max="0.002" step="0.00001" value="-0.0001">
+                </div>
+
+                <div class="control-group">
+                    <label>Celestial Latitude <span id="val-lat" class="value-display">-47°</span></label>
+                    <input type="range" id="latitude" min="-90" max="90" step="1" value="-47">
+                </div>
+
+                <div class="section-title">Star Field</div>
+
+                <div class="control-group">
+                    <label>Star Density <span id="val-density" class="value-display">Massive</span></label>
+                    <input type="range" id="density" min="1" max="50" step="1" value="3">
+                </div>
+                
+                <div class="control-group">
+                    <label>Clustering (Noise) <span id="val-cluster" class="value-display">High</span></label>
+                    <input type="range" id="cluster" min="0" max="1" step="0.05" value="0.6">
+                </div>
+
+                <div class="section-title">Atmosphere & Light</div>
+
+                <div class="control-group">
+                    <label>Sky Hue Shift <span id="val-hue" class="value-display">Auto</span></label>
+                    <input type="range" id="sky-hue" min="-1" max="360" step="1" value="-1">
+                </div>
+
+                <div class="control-group">
+                    <label>Atmosphere Density <span id="val-glow" class="value-display">100%</span></label>
+                    <input type="range" id="glow" min="0" max="1.5" step="0.05" value="1.0">
+                </div>
+
+                <div class="section-title">Landscape</div>
+
+                <div class="control-group">
+                    <label>Tree Density <span id="val-trees" class="value-display">Normal</span></label>
+                    <input type="range" id="tree-density" min="0" max="2" step="0.1" value="0.8">
+                </div>
+
+                <div class="section-title">Planetary System</div>
+
+                <div class="control-group">
+                    <label>Max Planets <span id="val-pcount" class="value-display">Auto</span></label>
+                    <input type="range" id="p-count" min="-1" max="3" step="1" value="-1">
+                </div>
+
+                <div class="control-group">
+                    <label>Planet Variance <span id="val-pvar" class="value-display">High</span></label>
+                    <input type="range" id="p-var" min="0" max="1" step="0.1" value="0.8">
+                </div>
+                
+                <div class="section-title">Solar System</div>
+                 <div class="control-group">
+                    <label>Sun Intensity <span id="val-sun" class="value-display">Auto</span></label>
+                    <input type="range" id="sun-intensity" min="-1" max="1" step="0.1" value="-1">
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="fps">FPS: 60</div>
+    <canvas id="skyCanvas"></canvas>
+
+    <script>
+        // --- UTILITIES ---
+
+        class SeededRandom {
+            constructor(seed) { this.reset(seed); }
+            hashString(str) {
+                let h = 1779033703 ^ str.length;
+                for (let i = 0; i < str.length; i++) {
+                    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+                    h = h << 13 | h >>> 19;
+                }
+                return function() {
+                    h = Math.imul(h ^ (h >>> 16), 2246822507);
+                    h = Math.imul(h ^ (h >>> 13), 3266489909);
+                    return (h >>> 0) / 4294967296;
+                };
+            }
+            reset(seed) { this.randomFunc = this.hashString(seed.toString()); }
+            next() { return this.randomFunc(); }
+            range(min, max) { return min + this.next() * (max - min); }
+            
+            // Simple 2D Noise approximation for Star Clustering (Perlin-ish)
+            noise(x, y) {
+                const floorX = Math.floor(x);
+                const floorY = Math.floor(y);
+                const s = Math.sin(floorX * 12.9898 + floorY * 78.233) * 43758.5453123;
+                return s - Math.floor(s);
+            }
+        }
+
+        // --- RENDERERS ---
+
+        class PlanetRenderer {
+            constructor() {
+                this.tempCanvas = document.createElement('canvas');
+                this.tempCtx = this.tempCanvas.getContext('2d');
+            }
+
+            generate(config, rng) {
+                const radius = config.radius;
+                const size = radius * 3; // Extra space for rings/glow
+                this.tempCanvas.width = size;
+                this.tempCanvas.height = size;
+                const cx = size / 2;
+                const cy = size / 2;
+                const ctx = this.tempCtx;
+
+                ctx.clearRect(0, 0, size, size);
+
+                // 1. Atmosphere Glow
+                const glow = ctx.createRadialGradient(cx, cy, radius * 0.8, cx, cy, radius * 1.3);
+                glow.addColorStop(0, config.atmosColor);
+                glow.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = glow;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 2. Rings (Behind)
+                if (config.hasRings) {
+                    this.drawRings(ctx, cx, cy, radius, config.ringColor, rng, true);
+                }
+
+                // 3. Planet Body
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                ctx.clip();
+
+                // Base
+                ctx.fillStyle = config.baseColor;
+                ctx.fillRect(0, 0, size, size);
+
+                // Procedural Bands/Noise
+                const bands = 8 + Math.floor(rng.next() * 10);
+                for(let i=0; i<bands; i++) {
+                    ctx.fillStyle = (i % 2 === 0) ? config.bandColor1 : config.bandColor2;
+                    ctx.globalAlpha = 0.2 + rng.next() * 0.3;
+                    const h = (size / bands) * (0.5 + rng.next());
+                    const y = (i / bands) * size;
+                    
+                    // Simple turbulence
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.bezierCurveTo(size/3, y + rng.range(-20,20), size*2/3, y + rng.range(-20,20), size, y);
+                    ctx.lineTo(size, y+h);
+                    ctx.lineTo(0, y+h);
+                    ctx.fill();
+                }
+
+                // Craters (if rocky)
+                if (config.type === 'rocky') {
+                    for(let i=0; i<10; i++) {
+                        const cr = rng.range(2, radius/5);
+                        const cxr = rng.next() * size;
+                        const cyr = rng.next() * size;
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                        ctx.beginPath();
+                        ctx.arc(cxr, cyr, cr, 0, Math.PI*2);
+                        ctx.fill();
+                    }
+                }
+
+                ctx.restore();
+
+                // 4. Shadow (Phase)
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius + 2, 0, Math.PI * 2); 
+                ctx.clip();
+                const shadowX = cx + (config.phase - 0.5) * (radius * 4);
+                const shadowGrad = ctx.createRadialGradient(shadowX, cy, radius * 0.8, shadowX, cy, radius * 2.5);
+                shadowGrad.addColorStop(0, 'rgba(0,0,0,0.95)');
+                shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = shadowGrad;
+                ctx.fillRect(0,0,size,size);
+                ctx.restore();
+
+                // 5. Rings (Front)
+                if (config.hasRings) {
+                    this.drawRings(ctx, cx, cy, radius, config.ringColor, rng, false);
+                }
+
+                // 6. Moons
+                if (config.moons > 0) {
+                     // We just draw them statically for the texture, 
+                     // but ideally they should be separate objects. 
+                     // For simplicity, we bake them if they are close, 
+                     // but actually, let's skip baking moons and render them in the engine.
+                }
+
+                // Convert to ImageBitmap or return canvas
+                const offC = document.createElement('canvas');
+                offC.width = size; offC.height = size;
+                offC.getContext('2d').drawImage(this.tempCanvas, 0, 0);
+                return offC;
+            }
+
+            drawRings(ctx, cx, cy, radius, color, rng, behind) {
+                ctx.save();
+                ctx.translate(cx, cy);
+                ctx.rotate(Math.PI * 0.15); // Tilt
+                ctx.scale(1, 0.3); // Perspective squash
+                
+                const ringStart = radius * 1.4;
+                const ringEnd = radius * 2.2;
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, ringEnd, 0, Math.PI*2);
+                ctx.arc(0, 0, ringStart, 0, Math.PI*2, true); 
+                
+                ctx.fillStyle = color;
+                ctx.globalAlpha = 0.6;
+                
+                // Clip based on behind/front
+                // This is a simplified "fake" 3D ring render logic
+                if (behind) {
+                    ctx.globalCompositeOperation = 'destination-over';
+                }
+                
+                ctx.fill();
+                
+                // Ring detail lines
+                ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0,0, ringStart + (ringEnd-ringStart)*0.5, 0, Math.PI*2);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+        }
+
+        // --- ENGINE ---
+
+        class CelestialEngine {
+            constructor() {
+                this.canvas = document.getElementById('skyCanvas');
+                this.ctx = this.canvas.getContext('2d', { alpha: false });
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                
+                // Memory buffers
+                this.maxStars = 600000;
+                this.starData = new Float32Array(this.maxStars * 5); // x,y,z,theta,size
+                this.starColors = new Uint32Array(this.maxStars);
+                this.activeStars = 0;
+                
+                this.shootingStars = [];
+                this.landscapeCanvas = document.createElement('canvas');
+                this.planets = []; // Array of {pos, image, size}
+                this.sun = null;   // {type, color, brightness, pos, radius}
+                
+                this.rng = new SeededRandom("CosmicVoyage2025");
+                this.planetRenderer = new PlanetRenderer();
+
+                this.config = {
+                    seed: "CosmicVoyage2025",
+                    rotationSpeed: -0.0001,
+                    starDensityMult: 3,
+                    clusterFactor: 0.6,
+                    poleY: this.height * 0.3,
+                    poleX: this.width / 2,
+                    glowIntensity: 1.0,
+                    cometChance: 0.005,
+                    locked: false,
+                    skyHue: -1, // -1 = Auto
+                    maxPlanets: -1, // -1 = Auto
+                    planetVar: 0.8,
+                    sunIntensityOverride: -1,
+                    treeDensity: 0.8 // Default tree density
+                };
+
+                this.ui = this.bindUI();
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                this.regenerateUniverse();
+                
+                this.lastTime = 0;
+                this.fpsDisplay = document.getElementById('fps');
+                this.animate = this.animate.bind(this);
+                requestAnimationFrame(this.animate);
+            }
+
+            bindUI() {
+                const els = {
+                    seed: document.getElementById('seed'),
+                    speed: document.getElementById('speed'),
+                    density: document.getElementById('density'),
+                    cluster: document.getElementById('cluster'),
+                    lat: document.getElementById('latitude'),
+                    glow: document.getElementById('glow'),
+                    skyHue: document.getElementById('sky-hue'),
+                    pCount: document.getElementById('p-count'),
+                    pVar: document.getElementById('p-var'),
+                    sun: document.getElementById('sun-intensity'),
+                    treeDen: document.getElementById('tree-density'),
+                    lock: document.getElementById('lock-btn'),
+                    header: document.getElementById('settings-header'),
+                    content: document.getElementById('settings-content'),
+                    arrow: document.querySelector('.fa-chevron-down'),
+                    vals: {
+                        speed: document.getElementById('val-speed'),
+                        density: document.getElementById('val-density'),
+                        lat: document.getElementById('val-lat'),
+                        cluster: document.getElementById('val-cluster'),
+                        hue: document.getElementById('val-hue'),
+                        pCount: document.getElementById('val-pcount'),
+                        sun: document.getElementById('val-sun'),
+                        treeDen: document.getElementById('val-trees')
+                    }
+                };
+
+                // Toggle Panel
+                els.header.addEventListener('click', (e) => {
+                    if(e.target.closest('#lock-btn')) return;
+                    els.content.classList.toggle('collapsed');
+                    els.arrow.classList.toggle('rotated');
+                });
+
+                // Lock
+                els.lock.addEventListener('click', () => {
+                    this.config.locked = !this.config.locked;
+                    els.lock.classList.toggle('locked');
+                    const icon = els.lock.querySelector('i');
+                    icon.className = this.config.locked ? 'fas fa-lock' : 'fas fa-lock-open';
+                    document.querySelectorAll('input').forEach(i => {
+                        if(i !== els.seed) i.disabled = this.config.locked;
+                    });
+                });
+
+                // Inputs
+                const link = (el, confKey, display, format) => {
+                    el.addEventListener('input', (e) => {
+                        let val = parseFloat(e.target.value);
+                        this.config[confKey] = val;
+                        if(display) display.innerText = format ? format(val) : val;
+                        
+                        // Triggers for regeneration
+                        if(['seed', 'starDensityMult', 'clusterFactor', 'skyHue', 'maxPlanets', 'planetVar', 'sunIntensityOverride', 'treeDensity'].includes(confKey)) {
+                            if(confKey === 'starDensityMult' || confKey === 'clusterFactor') this.initStars();
+                            else this.regenerateUniverse();
+                        }
+                        if(confKey === 'poleY') {} // handled in render or resize
+                    });
+                };
+
+                link(els.speed, 'rotationSpeed', els.vals.speed, v => v.toFixed(5));
+                link(els.density, 'starDensityMult', els.vals.density, v => `Massive x${Math.ceil(v/3)}`);
+                link(els.cluster, 'clusterFactor', els.vals.cluster, v => Math.round(v*100)+'%');
+                link(els.skyHue, 'skyHue', els.vals.hue, v => v === -1 ? "Auto" : v + "°");
+                link(els.pCount, 'maxPlanets', els.vals.pCount, v => v === -1 ? "Auto" : v);
+                link(els.sun, 'sunIntensityOverride', els.vals.sun, v => v === -1 ? "Auto" : Math.round(v*100)+"%");
+                link(els.treeDen, 'treeDensity', els.vals.treeDen, v => v > 1.5 ? "Dense" : (v > 0.5 ? "Normal" : "Sparse"));
+                
+                els.lat.addEventListener('input', e => {
+                    const val = parseInt(e.target.value);
+                    this.config.poleY = (this.height * 0.8) - ((val + 90) / 180) * (this.height * 1.5);
+                    els.vals.lat.innerText = val + "°";
+                });
+                
+                els.seed.addEventListener('change', e => {
+                    this.config.seed = e.target.value;
+                    this.regenerateUniverse();
+                });
+
+                return els;
+            }
+
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+                this.config.poleX = this.width / 2;
+                // Re-calc poleY based on current slider
+                const lat = parseInt(this.ui.lat.value);
+                this.config.poleY = (this.height * 0.8) - ((lat + 90) / 180) * (this.height * 1.5);
+                this.generateLandscape();
+            }
+
+            regenerateUniverse() {
+                this.rng.reset(this.config.seed);
+                this.planets = [];
+                this.sun = null;
+
+                // 1. Generate Sky Palette
+                this.generateSkyPalette();
+
+                // 2. Generate Sun
+                this.generateSun();
+
+                // 3. Generate Planets
+                this.generatePlanets();
+
+                // 4. Generate Stars
+                this.initStars();
+
+                // 5. Landscape
+                this.generateLandscape();
+            }
+
+            generateSkyPalette() {
+                // Base hue determined by seed or override
+                let hue = this.config.skyHue;
+                if (hue === -1) hue = this.rng.range(200, 340); // Blues, Purples, Teals
+
+                this.skyColors = {
+                    top: `hsl(${hue}, 60%, 5%)`,
+                    mid: `hsl(${hue + 20}, 40%, 10%)`,
+                    bottom: `hsl(${hue - 20}, 50%, 20%)`
+                };
+            }
+
+            generateSun() {
+                // 30% chance of sun, unless override
+                let hasSun = this.rng.next() > 0.7;
+                let intensity = this.config.sunIntensityOverride;
+                
+                if (intensity > -0.5) { // If manual set
+                    hasSun = intensity > 0;
+                } else {
+                    intensity = hasSun ? this.rng.range(0.3, 0.9) : 0;
+                }
+
+                if (!hasSun && intensity <= 0) return;
+
+                const typeRoll = this.rng.next();
+                let type = 'main'; // Yellow
+                let color = '255, 240, 200';
+                let radius = this.rng.range(40, 80);
+                
+                if (typeRoll > 0.85) { type = 'red_giant'; color = '255, 100, 50'; radius = 150; intensity *= 0.6; }
+                else if (typeRoll > 0.7) { type = 'blue_dwarf'; color = '200, 230, 255'; radius = 30; intensity *= 1.2; }
+                else if (typeRoll > 0.6) { type = 'white_dwarf'; color = '255, 255, 255'; radius = 15; intensity *= 1.4; }
+
+                this.sun = {
+                    type, color, radius,
+                    intensity: Math.max(0, intensity),
+                    x: this.rng.range(this.width * 0.1, this.width * 0.9),
+                    y: this.rng.range(this.height * 0.1, this.height * 0.5)
+                };
+            }
+
+            generatePlanets() {
+                let count = this.config.maxPlanets;
+                if (count === -1) count = Math.floor(this.rng.range(0, 3.99)); // 0 to 3 planets
+
+                for (let i = 0; i < count; i++) {
+                    const r = this.rng.range(50, 200) * (this.config.planetVar + 0.2);
+                    const typeRoll = this.rng.next();
+                    let type = 'gas';
+                    let base = '#bba', band1 = '#aa9', band2 = '#998';
+                    let atmos = 'rgba(200,220,255,0.2)';
+                    
+                    if (typeRoll > 0.6) { // Rocky/Earth-like
+                        type = 'rocky';
+                        base = `hsl(${this.rng.range(0,360)}, 40%, 40%)`;
+                        band1 = `hsl(${this.rng.range(0,360)}, 30%, 30%)`;
+                        band2 = `hsl(${this.rng.range(0,360)}, 30%, 50%)`;
+                        atmos = `rgba(${this.rng.range(100,255)}, ${this.rng.range(100,255)}, 255, 0.4)`;
+                    }
+
+                    const config = {
+                        radius: r,
+                        type: type,
+                        baseColor: base, bandColor1: band1, bandColor2: band2,
+                        atmosColor: atmos,
+                        ringColor: `rgba(${this.rng.range(200,255)}, ${this.rng.range(200,255)}, 255, ${this.rng.range(0.3,0.8)})`,
+                        hasRings: this.rng.next() > 0.6,
+                        moons: this.rng.next() > 0.5 ? Math.floor(this.rng.range(1, 3)) : 0,
+                        phase: this.rng.range(0.1, 0.9)
+                    };
+
+                    const img = this.planetRenderer.generate(config, this.rng);
+                    
+                    this.planets.push({
+                        img: img,
+                        x: this.rng.range(this.width*0.1, this.width*0.9),
+                        y: this.rng.range(this.height*0.1, this.height*0.6),
+                        size: config.radius * 2 + 40,
+                        radius: config.radius
+                    });
+                }
+                
+                // Sort planets by size (simulate depth, smaller/further first)
+                this.planets.sort((a,b) => a.radius - b.radius);
+            }
+
+            initStars() {
+                this.activeStars = Math.min(this.config.starDensityMult * 10000, this.maxStars);
+                const starRng = new SeededRandom(this.config.seed + "_stars");
+                const maxRadius = Math.hypot(this.width, this.height) * 1.8;
+                
+                // Clustering parameters
+                const clusterScale = 0.002; // Scale of noise
+                const clusterThreshold = 1 - this.config.clusterFactor; 
+
+                for (let i = 0; i < this.activeStars; i++) {
+                    // 1. Position
+                    const r = Math.sqrt(starRng.next()) * maxRadius;
+                    const theta = starRng.next() * Math.PI * 2;
+                    
+                    // 2. Clustering check
+                    // We map polar (r, theta) to "space coordinates" for noise to get bands
+                    const sx = r * Math.cos(theta);
+                    const sy = r * Math.sin(theta);
+                    
+                    const noiseVal = starRng.noise(sx * clusterScale, sy * clusterScale); // 0-1 approx
+                    // If clustering is high, we reject stars in low noise areas
+                    // We bias random roll against noise value
+                    if (starRng.next() > (noiseVal + clusterThreshold)) {
+                        // Chance to skip this star to create voids
+                        // But we want *some* stars everywhere
+                        if(starRng.next() > 0.1) { // 10% chance to exist anyway (background stars)
+                            i--; continue; 
+                        }
+                    }
+
+                    // 3. Properties
+                    let size = 1.0;
+                    const sizeRoll = starRng.next();
+                    if (sizeRoll > 0.99) size = starRng.range(2, 3.5);
+                    else if (sizeRoll > 0.90) size = starRng.range(1.5, 2);
+                    else size = starRng.range(0.5, 1.5);
+
+                    const colorRoll = starRng.next();
+                    let rC, gC, bC;
+                    if (colorRoll > 0.92) { rC=255; gC=200; bC=150; } 
+                    else if (colorRoll > 0.84) { rC=150; gC=200; bC=255; }
+                    else if (colorRoll > 0.98) { rC=255; gC=100; bC=100; }
+                    else { rC=255; gC=255; bC=255; }
+
+                    const color = (255 << 24) | (bC << 16) | (gC << 8) | rC;
+
+                    this.starData[i * 5 + 0] = r;      
+                    this.starData[i * 5 + 1] = theta;  
+                    this.starData[i * 5 + 2] = size;   
+                    this.starData[i * 5 + 3] = starRng.next() * Math.PI * 2; 
+                    this.starColors[i] = color;
+                }
+            }
+
+            generateLandscape() {
+                const landRng = new SeededRandom(this.config.seed + "_land");
+                this.landscapeCanvas.width = this.width;
+                this.landscapeCanvas.height = this.height;
+                const ctx = this.landscapeCanvas.getContext('2d');
+                ctx.clearRect(0, 0, this.width, this.height);
+                ctx.fillStyle = '#020202';
+
+                // Simplex-ish 1D noise for terrain
+                const heightMap = new Float32Array(this.width);
+                let y = this.height * 0.85; 
+                let t = 0;
+
+                ctx.beginPath();
+                ctx.moveTo(0, this.height);
+                for (let x = 0; x < this.width; x++) {
+                    // Layered noise
+                    const n1 = Math.sin(x * 0.005 + landRng.next()*10) * 20;
+                    const n2 = Math.sin(x * 0.02) * 5;
+                    const n3 = Math.sin(x * 0.1) * 2;
+                    y = (this.height * 0.85) + n1 + n2 + n3;
+                    
+                    heightMap[x] = y;
+                    ctx.lineTo(x, y);
+                }
+                ctx.lineTo(this.width, this.height);
+                ctx.lineTo(0, this.height);
+                ctx.fill();
+
+                // Trees
+                // Use density from config
+                const baseTrees = this.width / 6;
+                const treeCount = Math.floor(baseTrees * this.config.treeDensity);
+                
+                let trees = [];
+                for(let i=0; i<treeCount; i++) {
+                    const x = Math.floor(landRng.next() * this.width);
+                    trees.push({x, y: heightMap[x]});
+                }
+                trees.sort((a,b) => a.y - b.y); // Draw back to front
+
+                for(let tr of trees) {
+                    // Don't draw if too high up (peaks)
+                    if (tr.y < this.height * 0.75 && landRng.next() > 0.2) continue;
+                    
+                    const depth = (tr.y - (this.height * 0.7)) / (this.height * 0.3);
+                    const scale = 0.5 + depth * 2.0;
+                    
+                    // Stylized Pine (Reference Style)
+                    const h = (40 + landRng.next() * 50) * scale;
+                    const w = h * 0.45; // Slightly wider base
+                    
+                    ctx.fillStyle = '#030305'; // Very dark blue/black
+                    
+                    // Draw 3-4 stacked triangles, getting wider at bottom
+                    const tiers = 3 + Math.floor(landRng.next() * 2);
+                    
+                    for(let j=0; j<tiers; j++) {
+                        const progress = j/tiers;
+                        // Bottom of this tier
+                        const tierY = tr.y - (h * progress); 
+                        // Top of this tier (tip)
+                        const tipY = tr.y - (h * ((j+1.4)/tiers)); // Overlap upwards
+                        
+                        // Width of this tier
+                        const tierW = w * (1 - (progress * 0.6)); // Taper
+                        
+                        // Wait, logic inverted. 
+                        // j=0 is bottom tier.
+                        
+                        const tierBottomY = tr.y - (h * (j/tiers) * 0.8); // slight overlap
+                        const tierTopY = tr.y - h;
+                        
+                        // Easier way: Draw from top down or bottom up.
+                        // Let's draw bottom up, triangles getting smaller.
+                        
+                        const tProgress = j / tiers;
+                        const nextProgress = (j+1) / tiers;
+                        
+                        const bottomW = w * (1 - tProgress * 0.6);
+                        const topW = w * (1 - nextProgress * 0.6);
+                        
+                        const bottomY = tr.y - (h * tProgress * 0.85);
+                        const topY = tr.y - (h * nextProgress * 1.2); 
+                        
+                        // Draw Triangle
+                        ctx.beginPath();
+                        ctx.moveTo(tr.x - bottomW/2, bottomY);
+                        ctx.lineTo(tr.x, tr.y - (h * (j+1)/tiers * 1.2)); // Peak of this tier
+                        ctx.lineTo(tr.x + bottomW/2, bottomY);
+                        ctx.fill();
+                        
+                        // Add slight curve/flare to branches? 
+                        // Keep sharp for requested style.
+                    }
+                    
+                    // Thin trunk (barely visible)
+                    ctx.fillStyle = '#020202';
+                    ctx.fillRect(tr.x - w*0.05, tr.y, w*0.1, 5);
+                }
+            }
+
+            spawnShootingStar() {
+                if (Math.random() < this.config.cometChance) {
+                    this.shootingStars.push({
+                        x: Math.random() * this.width,
+                        y: Math.random() * (this.height * 0.4),
+                        len: 0,
+                        speed: 10 + Math.random() * 20,
+                        angle: Math.PI / 4 + (Math.random() - 0.5) * 0.5,
+                        life: 1.0,
+                        width: Math.random() * 2 + 1
+                    });
+                }
+            }
+
+            animate(timestamp) {
+                const dt = timestamp - this.lastTime;
+                this.lastTime = timestamp;
+                
+                // 1. Sky Gradient
+                const gradient = this.ctx.createLinearGradient(0, 0, 0, this.height);
+                let sunFactor = this.sun ? this.sun.intensity : 0;
+                
+                // If sun is up, sky gets brighter/bluer
+                if (this.sun) {
+                     // Simple check: Is sun "visible" on screen?
+                     // Actually, sunIntensity is global "daylight" factor here
+                }
+
+                gradient.addColorStop(0, this.skyColors.top);
+                gradient.addColorStop(0.5, this.skyColors.mid);
+                gradient.addColorStop(1, this.skyColors.bottom);
+                this.ctx.fillStyle = gradient;
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // 2. Sun (Behind Stars? No, stars are distant. Sun is closer. 
+                // Wait, in visualization, Sun usually blocks stars behind it, but we are inside solar system.
+                // Stars are background. Sun is foreground object relative to stars.)
+                
+                // Actually, let's render Stars FIRST, then Sun, then Planets.
+                // Light pollution affects star alpha.
+                
+                const time = Date.now() * 0.002;
+                const rot = this.config.rotationSpeed;
+                const poleX = this.config.poleX;
+                const poleY = this.config.poleY;
+                const w = this.width;
+                const h = this.height;
+
+                // Star Rendering
+                let starAlphaMult = 1.0;
+                if (this.sun) {
+                    // Decrease star visibility based on sun intensity
+                    starAlphaMult = Math.max(0, 1.0 - this.sun.intensity * 1.5);
+                }
+
+                if (starAlphaMult > 0.01) {
+                    for (let i = 0; i < this.activeStars; i++) {
+                        const off = i * 5;
+                        this.starData[off + 1] += rot; // Rotate
+                        
+                        const r = this.starData[off];
+                        const theta = this.starData[off + 1];
+                        
+                        const x = poleX + r * Math.cos(theta);
+                        const y = poleY + r * Math.sin(theta);
+                        
+                        if (x < -2 || x > w + 2 || y < -2 || y > h + 2) continue;
+
+                        const size = this.starData[off + 2];
+                        const twinkle = this.starData[off + 3];
+                        
+                        // Twinkle
+                        let alpha = (0.7 + 0.3 * Math.sin(time + twinkle)) * starAlphaMult;
+                        
+                        const col = this.starColors[i];
+                        const rC = col & 0xFF;
+                        const gC = (col >> 8) & 0xFF;
+                        const bC = (col >> 16) & 0xFF;
+
+                        this.ctx.fillStyle = `rgba(${rC},${gC},${bC},${alpha})`;
+                        this.ctx.fillRect(x, y, size, size);
+                    }
+                }
+
+                // 3. Draw Sun
+                if (this.sun) {
+                    const { x, y, radius, color, intensity } = this.sun;
+                    
+                    // Glow
+                    const sg = this.ctx.createRadialGradient(x, y, radius*0.2, x, y, radius*4);
+                    sg.addColorStop(0, `rgba(${color}, 1)`);
+                    sg.addColorStop(0.2, `rgba(${color}, ${0.5 * intensity})`);
+                    sg.addColorStop(1, `rgba(${color}, 0)`);
+                    this.ctx.fillStyle = sg;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, radius*4, 0, Math.PI*2);
+                    this.ctx.fill();
+
+                    // Core
+                    this.ctx.fillStyle = `rgb(${color})`;
+                    this.ctx.beginPath();
+                    this.ctx.arc(x, y, radius, 0, Math.PI*2);
+                    this.ctx.fill();
+                    
+                    // God Rays (simple)
+                    if (intensity > 0.5) {
+                        this.ctx.save();
+                        this.ctx.globalCompositeOperation = 'screen';
+                        this.ctx.strokeStyle = `rgba(${color}, 0.1)`;
+                        this.ctx.lineWidth = 20;
+                        for(let i=0; i<8; i++) {
+                            const ang = time * 0.1 + (i/8)*Math.PI*2;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(x, y);
+                            this.ctx.lineTo(x + Math.cos(ang)*w, y + Math.sin(ang)*w);
+                            this.ctx.stroke();
+                        }
+                        this.ctx.restore();
+                    }
+                }
+
+                // 4. Draw Planets
+                for (let p of this.planets) {
+                    const cx = p.x;
+                    const cy = p.y;
+                    // Check bounds loosely
+                    if (cx < -p.size || cx > w + p.size || cy < -p.size || cy > h + p.size) continue;
+                    
+                    this.ctx.drawImage(p.img, cx - p.size/2, cy - p.size/2);
+                    
+                    // Moons (Simple circles orbiting)
+                    // We generate them on the fly for animation
+                    // Use seed based offset for orbit
+                    // Need planet specific random... use p.x as seed approx
+                    if (p.radius > 30) { // Only big planets have visible moons here
+                        const orbitTime = time * 0.5;
+                        const orbitR = p.radius * 2.5;
+                        const mx = cx + Math.cos(orbitTime) * orbitR;
+                        const my = cy + Math.sin(orbitTime) * (orbitR * 0.3); // Perspective
+                        
+                        // Draw moon (behind or front?)
+                        // If sin > 0 front, else back
+                        // Draw back moons before planet? Too late. 
+                        // Draw front moons now.
+                        if (Math.sin(orbitTime) > 0) {
+                            this.ctx.fillStyle = '#ccc';
+                            this.ctx.beginPath();
+                            this.ctx.arc(mx, my, p.radius*0.1, 0, Math.PI*2);
+                            this.ctx.fill();
+                        }
+                    }
+                }
+
+                // 5. Shooting Stars
+                this.spawnShootingStar();
+                for (let i = this.shootingStars.length - 1; i >= 0; i--) {
+                    const s = this.shootingStars[i];
+                    const tailX = s.x - Math.cos(s.angle) * s.len;
+                    const tailY = s.y - Math.sin(s.angle) * s.len;
+                    
+                    const grad = this.ctx.createLinearGradient(s.x, s.y, tailX, tailY);
+                    grad.addColorStop(0, `rgba(255,255,255,${s.life})`);
+                    grad.addColorStop(1, `rgba(255,255,255,0)`);
+                    this.ctx.strokeStyle = grad;
+                    this.ctx.lineWidth = s.width;
+                    this.ctx.lineCap = 'round';
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(s.x, s.y);
+                    this.ctx.lineTo(tailX, tailY);
+                    this.ctx.stroke();
+                    
+                    s.x += Math.cos(s.angle) * s.speed;
+                    s.y += Math.sin(s.angle) * s.speed;
+                    s.len += 4;
+                    if(s.len > 200) s.len = 200; 
+                    s.life -= 0.015;
+                    
+                    if (s.life <= 0 || s.x > w || s.y > h) this.shootingStars.splice(i, 1);
+                }
+
+                // 6. Landscape
+                this.ctx.drawImage(this.landscapeCanvas, 0, 0);
+
+                // 7. Atmos Overlay
+                if (this.config.glowIntensity > 0) {
+                    const atmoH = this.height * 0.4;
+                    const ag = this.ctx.createLinearGradient(0, this.height-atmoH, 0, this.height);
+                    ag.addColorStop(0, 'rgba(0,0,0,0)');
+                    ag.addColorStop(1, `rgba(10, 20, 50, ${0.7 * this.config.glowIntensity})`);
+                    this.ctx.fillStyle = ag;
+                    this.ctx.fillRect(0, this.height-atmoH, this.width, atmoH);
+                }
+
+                this.ctx.fillStyle = '#fff';
+                // FPS Update
+                if (timestamp % 30 < 1) this.fpsDisplay.innerText = `FPS: ${Math.round(1000/dt)}`;
+
+                requestAnimationFrame(this.animate);
+            }
+        }
+
+        window.addEventListener('load', () => new CelestialEngine());
+    </script>
+</body>
+</html>
